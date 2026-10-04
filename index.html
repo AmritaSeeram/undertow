@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Undertow | Do trading costs erase the edge?</title>
+<meta name="description" content="Interactive pairs-trading backtest dashboard: drag the cost slider and watch the edge disappear.">
+<style>
+:root{--bg:#f7f6f3;--card:#fff;--ink:#16181d;--mute:#4b5160;--line:#d9d6cf;--a:#0b6b5c;--b:#9a4b00;--bad:#a4262c;--good:#0b6b5c}
+@media(prefers-color-scheme:dark){:root{--bg:#101318;--card:#181c23;--ink:#f0eee9;--mute:#b4b9c4;--line:#2d3340;--a:#5fd3bd;--b:#f2a45c;--bad:#ff8a8f;--good:#5fd3bd}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:960px;margin:0 auto;padding:clamp(16px,4vw,40px)}
+h1{font-size:clamp(2rem,6vw,3rem);margin:0;letter-spacing:-.02em}h2{font-size:1rem;margin:0 0 .5rem;color:var(--mute);font-weight:600}
+.sub{color:var(--mute);margin:.25rem 0 1.5rem;max-width:60ch}.tag{display:inline-block;font-size:.8rem;border:1px solid var(--b);color:var(--b);border-radius:99px;padding:.1rem .6rem;margin-left:.5rem;vertical-align:middle}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:1rem 1.2rem;margin-bottom:1rem}
+.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.kpi b{display:block;font-size:1.9rem;line-height:1.1}.kpi span{color:var(--mute);font-size:.85rem}
+label{display:flex;justify-content:space-between;font-weight:600;margin-top:.6rem}input[type=range]{width:100%;height:44px;accent-color:var(--a)}
+:focus-visible{outline:3px solid var(--b);outline-offset:2px}
+svg{width:100%;height:auto;display:block}.leg{display:flex;gap:1rem;flex-wrap:wrap;font-size:.9rem;color:var(--mute)}.leg i{display:inline-block;width:18px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
+#verdict{font-size:1.15rem;border-left:6px solid var(--a)}#verdict.bad{border-color:var(--bad)}#verdict.mid{border-color:var(--b)}
+details{color:var(--mute)}summary{cursor:pointer;color:var(--ink);font-weight:600}.neg{color:var(--bad)}.pos{color:var(--good)}
+</style></head><body><main>
+<h1>Undertow<span id="demo" class="tag" hidden>Demo data</span></h1>
+<p class="sub">A walk-forward pairs-trading backtest. Every number is out-of-sample. Drag the sliders to see how quickly trading costs eat the edge.</p>
+
+<section class="card" id="verdict" role="status" aria-live="polite"></section>
+
+<section class="card" aria-label="Controls">
+<label for="cost">Trading cost per side <output id="costv"></output></label>
+<input id="cost" type="range" min="0" max="40" step="1">
+<label for="borrow">Short borrow fee, per year <output id="borv"></output></label>
+<input id="borrow" type="range" min="0" max="200" step="5">
+</section>
+
+<section class="grid" aria-label="Key results">
+<div class="card kpi"><b id="k-sharpe"></b><span>Net Sharpe ratio</span></div>
+<div class="card kpi"><b id="k-cagr"></b><span>Yearly return (CAGR)</span></div>
+<div class="card kpi"><b id="k-dd"></b><span>Worst drop (max drawdown)</span></div>
+<div class="card kpi"><b id="k-vol"></b><span>Yearly volatility</span></div>
+</section>
+
+<section class="card"><h2>Growth of $1</h2>
+<svg id="chart" viewBox="0 0 800 330" role="img" aria-labelledby="ct"><title id="ct">Line chart of growth of one dollar, before and after costs</title></svg>
+<div class="leg"><span><i style="background:var(--b)"></i>Before costs</span><span><i style="background:var(--a)"></i>After costs</span></div></section>
+
+<section class="card"><h2>Can a model tell good pairs from bad ones?</h2><div id="ml"></div></section>
+
+<section class="card"><details><summary>How to read this</summary>
+<p><b>Sharpe ratio</b> is return per unit of risk. Above 1 is good, near 0 means no edge. <b>Drawdown</b> is the biggest fall from a previous peak. <b>Cost per side</b> is what each buy or sell costs in basis points (1 bp = 0.01%), covering commissions and slippage. The strategy trades often, so small costs add up quickly.</p>
+<p>The test is walk-forward: pairs are picked on one year of past prices, traded on the next quarter, then re-picked. The pair-quality model is trained only on earlier windows and scored on later ones. An AUC of 0.50 is a coin flip.</p></details></section>
+</main>
+<script src="data.js"></script>
+<script>
+const D=window.UNDERTOW_DATA,$=id=>document.getElementById(id),n=D.gross.length;
+const pct=(x,d=1)=>(x*100).toFixed(d)+"%";
+function run(c,b){const r=new Array(n);for(let i=0;i<n;i++)r[i]=D.gross[i]-D.turnover[i]*c/1e4-D.short[i]*b/1e4/252;
+ let m=0;for(const x of r)m+=x;m/=n;let v=0;for(const x of r)v+=(x-m)**2;const sd=Math.sqrt(v/(n-1))||1e-12;
+ let e=1,pk=1,dd=0;const eq=[1];for(const x of r){e*=1+x;pk=Math.max(pk,e);dd=Math.min(dd,e/pk-1);eq.push(e)}
+ return{sharpe:m/sd*Math.sqrt(252),cagr:Math.pow(e,252/n)-1,dd,vol:sd*Math.sqrt(252),eq}}
+function curve(eq,min,max){const W=800,H=330,L=48,B=28;return eq.map((y,i)=>(i?"L":"M")+(L+i/(eq.length-1)*(W-L-8)).toFixed(1)+" "+(H-B-(y-min)/(max-min)*(H-B-10)).toFixed(1)).join("")}
+function draw(g,nt){const all=g.eq.concat(nt.eq),min=Math.min(...all,1),max=Math.max(...all);let s="";
+ for(let k=0;k<=4;k++){const y=min+(max-min)*k/4,py=302-(y-min)/(max-min)*320+ (k?0:0);const yy=302-(y-min)/(max-min)*(292);
+  s+=`<line x1="48" x2="792" y1="${yy}" y2="${yy}" stroke="var(--line)"/><text x="42" y="${yy+4}" text-anchor="end" font-size="12" fill="var(--mute)">${y.toFixed(2)}</text>`}
+ s+=`<text x="48" y="324" font-size="12" fill="var(--mute)">${D.dates[0]}</text><text x="792" y="324" text-anchor="end" font-size="12" fill="var(--mute)">${D.dates[n-1]}</text>`;
+ s+=`<path d="${curve(g.eq,min,max)}" fill="none" stroke="var(--b)" stroke-width="2.5"/><path d="${curve(nt.eq,min,max)}" fill="none" stroke="var(--a)" stroke-width="2.5"/>`;
+ $("chart").innerHTML='<title id="ct">Growth of one dollar before and after costs</title>'+s}
+function update(){const c=+$("cost").value,b=+$("borrow").value;$("costv").textContent=c+" bps";$("borv").textContent=b+" bps";
+ const net=run(c,b),gross=run(0,0);$("k-sharpe").textContent=net.sharpe.toFixed(2);$("k-cagr").textContent=pct(net.cagr);$("k-dd").textContent=pct(net.dd);$("k-vol").textContent=pct(net.vol);
+ for(const[id,v]of[["k-sharpe",net.sharpe],["k-cagr",net.cagr]])$(id).className=v<0?"neg":"pos";
+ let be=null;for(let k=0;k<=200;k++){if(run(k,b).sharpe<=0){be=k;break}}
+ const v=$("verdict");v.className="card "+(net.sharpe<=0?"bad":net.sharpe<.5?"mid":"");
+ const bes=gross.sharpe<=0?"The strategy has no edge even with free trading.":be===null?"It stays profitable even at 200 bps per side.":`The edge disappears at about <b>${be} bps</b> per side.`;
+ v.innerHTML=net.sharpe<=0?`At ${c} bps per side, costs <b>erase the edge</b> (net Sharpe ${net.sharpe.toFixed(2)}). ${bes}`:net.sharpe<.5?`At ${c} bps per side the edge is <b>thin</b> (net Sharpe ${net.sharpe.toFixed(2)}). ${bes}`:`At ${c} bps per side the strategy <b>holds up</b> (net Sharpe ${net.sharpe.toFixed(2)}). ${bes}`;
+ draw(gross,net)}
+$("cost").value=D.base.cost_bps;$("borrow").value=D.base.borrow_bps;$("demo").hidden=!D.synthetic;
+$("cost").oninput=$("borrow").oninput=update;
+const ml=D.ml;$("ml").innerHTML=ml.auc==null?"Not enough completed trades to test a model honestly.":`A random forest trained on earlier windows and tested on <b>${ml.n_test}</b> later pair-windows scored an AUC of <b>${ml.auc.toFixed(2)}</b>. ${ml.auc<.55?"That is close to a coin flip, so pair statistics alone do not predict which pairs will profit.":"That is better than chance, but check it on more data before trusting it."}`;
+update();
+</script></body></html>
