@@ -1,4 +1,4 @@
-# Undertow
+# Undertow- Quant Project
 
 **A pairs-trading research project with a dashboard that shows how fast trading costs erase the edge.**
 
