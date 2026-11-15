@@ -8,7 +8,7 @@ explicit, and a slider lets anyone drag the trading cost up and watch the strate
 It combines three things: a quantitative research engine (Python), a small machine-learning test, and an
 accessible, responsive dashboard designed so a non-quant can read the result in seconds.
 
-## What is inside
+## What is inside   
 
   
 | Part | What it does |
