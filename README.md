@@ -10,6 +10,7 @@ accessible, responsive dashboard designed so a non-quant can read the result in 
 
 ## What is inside
 
+  
 | Part | What it does |
 |---|---|
 | `undertow/` | Walk-forward pairs-trading engine: cointegration tests with Benjamini-Hochberg false-discovery control, half-life filter, z-score signals, next-close execution, per-side costs and borrow fees |
